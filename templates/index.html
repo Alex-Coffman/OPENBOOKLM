@@ -1,0 +1,336 @@
+<!-- templates/index.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF Vector DB & Ollama Query Tool</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            padding-top: 2rem;
+            padding-bottom: 2rem;
+        }
+        .card {
+            margin-bottom: 1rem;
+        }
+        .response-area {
+            min-height: 300px;
+            max-height: 500px;
+            overflow-y: auto;
+            border: 1px solid #dee2e6;
+            border-radius: 0.25rem;
+            padding: 1rem;
+            margin-top: 1rem;
+            background-color: #f8f9fa;
+        }
+        .context-doc {
+            border-left: 3px solid #007bff;
+            padding-left: 0.5rem;
+            margin-bottom: 0.5rem;
+            background-color: #e9ecef;
+            padding: 0.5rem;
+            border-radius: 0.25rem;
+        }
+        .loading {
+            display: none;
+            text-align: center;
+            margin: 1rem 0;
+        }
+        .spinner-border {
+            width: 3rem;
+            height: 3rem;
+        }
+        textarea {
+            min-height: 100px;
+            resize: vertical;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="text-center mb-4">CUSTOMIZABLE DATABASE AI</h1>
+        
+        <div class="card">
+            <div class="card-header">PDF Selection</div>
+            <div class="card-body">
+                <div class="input-group">
+                    <input type="file" class="form-control" id="pdfInput" accept=".pdf">
+                    <button class="btn btn-primary" id="processPdfBtn">Process PDF</button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card">
+            <div class="card-header">Database Management</div>
+            <div class="card-body">
+                <div class="d-flex gap-2">
+                    <button class="btn btn-success" id="downloadDatabaseBtn">Download Database</button>
+                    <div class="input-group">
+                        <input type="file" class="form-control" id="csvInput" accept=".csv">
+                        <button class="btn btn-info" id="loadDatabaseBtn">Load Database</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card">
+            <div class="card-header">Ollama Configuration</div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label for="ollamaModel" class="form-label">Ollama Model</label>
+                    <input type="text" class="form-control" id="ollamaModel" placeholder="Enter Ollama model name (e.g., llama2)">
+                </div>
+                <div class="mb-3">
+                    <label for="ollamaUrl" class="form-label">Ollama URL</label>
+                    <input type="text" class="form-control" id="ollamaUrl" value="http://localhost:11434" placeholder="Ollama API URL">
+                </div>
+                <div class="mb-3">
+                    <label for="systemInstructions" class="form-label">System Instructions</label>
+                    <textarea class="form-control" id="systemInstructions" placeholder="Enter system instructions for the model"></textarea>
+                    <div class="form-text">Custom instructions that guide how the model should behave or respond.</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card">
+            <div class="card-header">Query</div>
+            <div class="card-body">
+                <div class="input-group">
+                    <input type="text" class="form-control" id="queryInput" placeholder="Enter your query">
+                    <button class="btn btn-primary" id="queryBtn">Query Database & Ollama</button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="loading" id="loadingIndicator">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p>Processing... This might take a moment.</p>
+        </div>
+        
+        <div class="card">
+            <div class="card-header">Response</div>
+            <div class="card-body">
+                <div class="response-area" id="responseArea">
+                    <p class="text-muted">Results will appear here.</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card mt-3">
+            <div class="card-header">System Instructions Templates</div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4 mb-2">
+                        <button class="btn btn-outline-secondary w-100" onclick="loadSystemTemplate('academic')">Academic Writing</button>
+                    </div>
+                    <div class="col-md-4 mb-2">
+                        <button class="btn btn-outline-secondary w-100" onclick="loadSystemTemplate('creative')">Creative Writing</button>
+                    </div>
+                    <div class="col-md-4 mb-2">
+                        <button class="btn btn-outline-secondary w-100" onclick="loadSystemTemplate('analytical')">Analytical Response</button>
+                    </div>
+                </div>
+                <div class="row mt-2">
+                    <div class="col-md-4 mb-2">
+                        <button class="btn btn-outline-secondary w-100" onclick="loadSystemTemplate('concise')">Concise Summary</button>
+                    </div>
+                    <div class="col-md-4 mb-2">
+                        <button class="btn btn-outline-secondary w-100" onclick="loadSystemTemplate('qa')">Q&A Format</button>
+                    </div>
+                    <div class="col-md-4 mb-2">
+                        <button class="btn btn-outline-secondary w-100" onclick="loadSystemTemplate('tutorial')">Tutorial Mode</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Process PDF button
+            document.getElementById('processPdfBtn').addEventListener('click', processPdf);
+            
+            // Download database button
+            document.getElementById('downloadDatabaseBtn').addEventListener('click', downloadDatabase);
+            
+            // Load database button
+            document.getElementById('loadDatabaseBtn').addEventListener('click', loadDatabase);
+            
+            // Query button
+            document.getElementById('queryBtn').addEventListener('click', queryOllama);
+        });
+        
+        // System instruction templates
+        const systemTemplates = {
+            academic: "You are an academic writing assistant. Provide formal, well-structured responses with proper citations and academic language. Focus on evidence-based arguments and maintain a scholarly tone throughout your responses.",
+            creative: "You are a creative writing assistant. Generate engaging, descriptive content with vivid imagery. Feel free to use metaphors, similes, and other literary devices to enhance your responses.",
+            analytical: "You are an analytical assistant. Break down complex topics into component parts, analyze relationships between concepts, and provide logical, evidence-based conclusions.",
+            concise: "You are a concise summary assistant. Provide brief, direct responses that capture only the most essential information. Aim for clarity and brevity.",
+            qa: "You are a Q&A assistant. Structure your responses in a question-and-answer format to address different aspects of the query systematically.",
+            tutorial: "You are a tutorial assistant. Explain concepts step by step as if teaching someone new to the subject. Use simple language and provide clear examples to illustrate points."
+        };
+        
+        function loadSystemTemplate(templateName) {
+            if (templateName in systemTemplates) {
+                document.getElementById('systemInstructions').value = systemTemplates[templateName];
+            }
+        }
+        
+        function showLoading() {
+            document.getElementById('loadingIndicator').style.display = 'block';
+        }
+        
+        function hideLoading() {
+            document.getElementById('loadingIndicator').style.display = 'none';
+        }
+        
+        function updateResponseArea(html) {
+            document.getElementById('responseArea').innerHTML = html;
+        }
+        
+        function showNotification(message, isError = false) {
+            alert(message);
+        }
+        
+        function processPdf() {
+            const fileInput = document.getElementById('pdfInput');
+            
+            if (!fileInput.files || fileInput.files.length === 0) {
+                showNotification('Please select a PDF file', true);
+                return;
+            }
+            
+            const formData = new FormData();
+            formData.append('pdf_file', fileInput.files[0]);
+            
+            showLoading();
+            
+            fetch('/process-pdf', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                hideLoading();
+                
+                if (data.error) {
+                    showNotification(`Error: ${data.error}`, true);
+                    return;
+                }
+                
+                showNotification(`Success! Created database with ${data.chunk_count} text chunks`);
+                updateResponseArea(`<p>Vector database created successfully with ${data.chunk_count} chunks.</p>
+                <p>Click "Download Database" to save the database to your computer.</p>`);
+            })
+            .catch(error => {
+                hideLoading();
+                showNotification(`Error: ${error}`, true);
+            });
+        }
+        
+        function downloadDatabase() {
+            window.location.href = '/download-database';
+        }
+        
+        function loadDatabase() {
+            const fileInput = document.getElementById('csvInput');
+            
+            if (!fileInput.files || fileInput.files.length === 0) {
+                showNotification('Please select a CSV file', true);
+                return;
+            }
+            
+            const formData = new FormData();
+            formData.append('csv_file', fileInput.files[0]);
+            
+            showLoading();
+            
+            fetch('/load-database', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                hideLoading();
+                
+                if (data.error) {
+                    showNotification(`Error: ${data.error}`, true);
+                    return;
+                }
+                
+                showNotification(`Success! Loaded database with ${data.chunk_count} text chunks`);
+                updateResponseArea(`<p>Vector database loaded successfully with ${data.chunk_count} chunks.</p>`);
+            })
+            .catch(error => {
+                hideLoading();
+                showNotification(`Error: ${error}`, true);
+            });
+        }
+        
+        function queryOllama() {
+            const queryText = document.getElementById('queryInput').value.trim();
+            const modelName = document.getElementById('ollamaModel').value.trim();
+            const ollamaUrl = document.getElementById('ollamaUrl').value.trim();
+            const systemInstructions = document.getElementById('systemInstructions').value.trim();
+            
+            if (!queryText) {
+                showNotification('Please enter a query', true);
+                return;
+            }
+            
+            if (!modelName) {
+                showNotification('Please enter an Ollama model name', true);
+                return;
+            }
+            
+            showLoading();
+            
+            fetch('/query', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    query: queryText,
+                    model: modelName,
+                    system: systemInstructions,
+                    ollama_url: ollamaUrl
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                hideLoading();
+                
+                if (data.error) {
+                    showNotification(`Error: ${data.error}`, true);
+                    return;
+                }
+                
+                // Display context and response
+                let html = '<h3>Context Documents:</h3>';
+                
+                data.context.forEach((doc, index) => {
+                    html += `<div class="context-doc">
+                        <strong>Document ${index + 1}:</strong>
+                        <p>${doc.text}</p>
+                    </div>`;
+                });
+                
+                html += '<h3>Ollama Response:</h3>';
+                html += `<div class="ollama-response">${marked.parse(data.ollama_response)}</div>`;
+                
+                updateResponseArea(html);
+            })
+            .catch(error => {
+                hideLoading();
+                showNotification(`Error: ${error}`, true);
+            });
+        }
+    </script>
+</body>
+</html>
